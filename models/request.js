@@ -16,8 +16,12 @@ var RequestSchema   = new Schema({
     // },
     pickup_location: Object,
     dropoff_location: Object,
-    special_instructions: String,
-    active: {type: Boolean, default: 'TRUE'}
+    restaurant_id: String,
+    restaurant: Object,
+    delivery_notes: String,
+    active: {type: Boolean, default: true},
+    accepted: {type: Boolean, default: false},
+    carrier_id: String
 });
 
 module.exports = mongoose.model('Request', RequestSchema);
