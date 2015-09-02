@@ -10,8 +10,26 @@ module.exports = function(router){
             Request.find(function(err, requests) {
                 if (err) {
                     log(err, req, "/requests");
-                    res.send(null);//res.json({"successful": false, "message": err});
+                    res.send(null);
+                    res.json({"successful": false, "message": err});
                 }
+                res.json(requests);
+            });
+        });
+
+    // on routes that end in /requests/available
+    // ----------------------------------------------------
+    router.route('/requests/available')
+
+        // get currently open requests (accessed at GET http://mealcarrier.com:8080/requests/available)
+        .get(function(req, res) {
+            Request.find({'accepted': false}, function(err, requests) {
+                if (err) {
+                    log(err, req, "/requests/available");
+                    res.send(null);
+                    res.json({"successful": false, "message": err});
+                }
+                // console.log(typeof requests[0].accepted);
                 res.json(requests);
             });
         });
@@ -38,7 +56,9 @@ module.exports = function(router){
             request.dropoff_location = dropoff_location;
             request.restaurant_id = req.body.restaurant_id;
             request.delivery_notes = req.body.delivery_notes;   // set the special instructions
-            request.active = req.body.active;   // set request active (TRUE) or canceled/completed (FALSE)
+            // request.active = req.body.active;   // set request active (TRUE) or canceled/completed (FALSE)
+            // Defaults to true. Set to false when delivery is completed.
+            // request.accepted = req.body.accepted;   // set request accepted (TRUE) or not yet accepted (FALSE) defaults to false
 
             // Find restaurant by ID and save as object in request
             // var restaurant = new Restaurant();
@@ -78,7 +98,17 @@ module.exports = function(router){
             Request.findById(req.params.request_id, function(err, request) {
                 if (err)
                     res.send(err);
-                res.json(request);
+                Restaurant.findById(request.restaurant_id, function(err, restaurant) {
+                    if (err)
+                        res.send(err);
+                    if (restaurant == null) {
+                        res.json(null);
+                    }
+                    else {
+                        request.pickup_location = restaurant.center; // update the request pickup location
+                        res.json(request);
+                    }
+                })
             });
         })
 
@@ -87,26 +117,15 @@ module.exports = function(router){
 
             // use our request model to find the request we want
             Request.findById(req.params.request_id, function(err, request) {
-
                 if (err)
                     res.send(err);
 
-    	        request.user_id = req.body.user_id;  // update the request name (comes from req)
-    	        request.time = req.body.time; // update the request timestamp (comes from req)
-
-                var pickup_location = [];
-                var dropoff_location = [];
-                pickup_location[0] = req.body.pickup_longitude; // set the request pickup location
-                pickup_location[1] = req.body.pickup_latitude;  // set the request pickup location
-                dropoff_location[0] = req.body.dropoff_longitude;   // set the request dropoff location
-                dropoff_location[1] = req.body.dropoff_latitude;    // set the request dropoff location
-
-    	        request.pickup_location = req.body.pickup_location;	// update the request pickup location
-    	        request.dropoff_location = req.body.dropoff_location;	// update the request dropoff location
-    	        request.delivery_notes = req.body.delivery_notes;	// update the special instructions
-    	        request.active = req.body.active;	// update request active (TRUE) or canceled/completed (FALSE)
-                request.accepted = req.body.accepted; // update request accepted (TRUE) or available (FALSE)
-                request.carrier_id = req.body.carrier_id;     // update carrier's user_id
+                // Loop through request for any field being changed, and then set the request accordingly
+                for (var key in req.body) {
+                    // TODO: Implement whitelist or blacklist so that people cannot change the restaurant_id, _id, or user_id
+                    request[key] = req.body[key];
+                }
+                console.log(request);
                 // save the request
                 request.save(function(err) {
                     if (err) {
@@ -117,7 +136,6 @@ module.exports = function(router){
                         res.json({"success": true, "message": 'Request updated!' });
                     }
                 });
-
             });
         })
 

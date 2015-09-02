@@ -12,6 +12,7 @@ var db         = require('./models/db');    // call mongoDB database connection
 var bodyParser = require('body-parser');
 var jwt        = require('jsonwebtoken'); // used to create, sign, and verify tokens
 var pw_hasher  = require('password-hash');  // call password hasher node package
+var braintree  = require('braintree');      // call braintree
 
 // configure app to use bodyParser()
 // this will let us get the data from a POST
@@ -26,6 +27,13 @@ var Request = require('./models/request');
 var User   = require('./models/user'); // get our mongoose model
 
 var port = process.env.PORT || 8000;        //  our port
+
+var gateway = braintree.connect({
+    environment:  braintree.Environment.Sandbox,
+    merchantId:   'w4g4dm96q7kc8bk6',
+    publicKey:    'kgjxw9s535k6dcyv',
+    privateKey:   '95a85365e2f7e7297900257932046fe5'
+});
 
 //Enable CORS Header on ExpressJS from http://enable-cors.org/server_expressjs.html
 //Comment out if nothing works
@@ -217,6 +225,54 @@ router.use(function(req, res, next) {
 // ----------------------------------------------------
 
 require('./routes/requests.js')(router);
+
+// ___________________________________________________________________
+
+// on routes that end in /payment/client_token
+// ----------------------------------------------------
+
+router.route('/payment/client_token')
+
+    .get(function(req, res) {
+        gateway.clientToken.generate({}, function (err, response) {
+            res.send(response.clientToken);
+        });
+    });
+
+// ___________________________________________________________________
+
+// on routes that end in /payment/payment_methods
+// ----------------------------------------------------
+
+router.route('/payment/payment_methods')
+
+    .post(function(req, res) {
+        var nonce = req.body.payment_method_nonce;
+        // console.log(nonce);
+
+        // Use payment method nonce here
+        gateway.customer.create({
+            paymentMethodNonce: nonce
+        }, function (err, result) {
+            if (result.success) {
+                var token = result.customer.paymentMethods[0].token;
+                gateway.transaction.sale({
+                    amount: '2.00',
+                    // paymentMethodNonce: nonce,
+                    paymentMethodToken: token,
+                }, function(err, result) {
+                if (err) {
+                    log(err, req, "/payment/payment_methods")
+                    res.json({success: false, "message": err, "payment_method_token": null });
+                }
+                else {
+                    // console.log(token);
+                    res.json({success: true, "message": 'Payment processed successfully!', "payment_method_token": token });
+                }
+                });
+            }
+        });
+    });
 
 // ___________________________________________________________________
 

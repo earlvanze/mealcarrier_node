@@ -3,7 +3,7 @@ var Schema       = mongoose.Schema;
 
 var RequestSchema   = new Schema({
     user_id: String,
-    time: {type: Date, default: Date.now},
+    created_time: {type: Date, default: Date.now},
     // pickup_location: {
     // 	type: [Number], // [<longitude>, <latitude>]
     // 	index: '2d',				// create the geospatial index
@@ -21,6 +21,7 @@ var RequestSchema   = new Schema({
     delivery_notes: String,
     active: {type: Boolean, default: true},
     accepted: {type: Boolean, default: false},
+    accepted_time: Date,
     carrier_id: String
 });
 
