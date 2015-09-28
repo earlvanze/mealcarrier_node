@@ -101,13 +101,25 @@ router.route('/register')
                     console.log(req.body.password)
                     user.password = pw_hasher.generate(req.body.password);
 
-                    // save the sample user
-                    user.save(function(err) {
+                    // save the new user
+                    user.save(function(err, user) {
                         if (err) {
                             log(err, req, "/register")
                             res.json({success: false, "message": err});
                         }
                         else {
+                            // Create Braintree customer
+                            gateway.customer.create({
+                                first_name: user.first_name,
+                                last_name: user.last_name,
+                                email: user.email,
+                                id: user._id.toString()
+                            }, function (err, result) {
+                                if (result.success) {
+                                    // Successful Braintree customer
+                                }
+                            });
+
                             // create a token
                             var token = jwt.sign(user._id, app.get('superSecret'), {
                                 expiresInMinutes: 10080 // expires in 1 week
@@ -228,10 +240,10 @@ require('./routes/requests.js')(router);
 
 // ___________________________________________________________________
 
-// on routes that end in /payment/client_token
+// on routes that end in /users/:user_id/client_token
 // ----------------------------------------------------
 
-router.route('/payment/client_token')
+router.route('/users/:user_id/client_token')
 
     .get(function(req, res) {
         gateway.clientToken.generate({}, function (err, response) {
@@ -241,20 +253,37 @@ router.route('/payment/client_token')
 
 // ___________________________________________________________________
 
-// on routes that end in /payment/payment_methods
+// on routes that end in /users/:user_id/payment_methods
 // ----------------------------------------------------
 
-router.route('/payment/payment_methods')
+router.route('/users/:user_id/payment_methods')
+
+    .get(function(req, res) {
+        gateway.customer.find(req.params.user_id, function(err, customer) {
+            if (err) {
+                console.log("ERROR: " + err);
+                res.json(null);
+            }
+            else {
+                console.log(customer.paymentMethods);
+                res.json(customer.paymentMethods);
+            }
+        });
+    })
 
     .post(function(req, res) {
         var nonce = req.body.payment_method_nonce;
         // console.log(nonce);
 
         // Use payment method nonce here
-        gateway.customer.create({
+        console.log(req.params.user_id);
+        gateway.customer.update(req.params.user_id, {
             paymentMethodNonce: nonce
         }, function (err, result) {
-            if (result.success) {
+            if (err) {
+                console.log("ERROR: " + err);
+                res.json({success: false, "message": "ERROR: " + err});
+            } else {
                 var token = result.customer.paymentMethods[0].token;
                 gateway.transaction.sale({
                     amount: '2.00',
@@ -262,12 +291,12 @@ router.route('/payment/payment_methods')
                     paymentMethodToken: token,
                 }, function(err, result) {
                 if (err) {
-                    log(err, req, "/payment/payment_methods")
+                    log(err, req, "/users/:user_id/payment_methods")
                     res.json({success: false, "message": err, "payment_method_token": null });
                 }
                 else {
                     // console.log(token);
-                    res.json({success: true, "message": 'Payment processed successfully!', "payment_method_token": token });
+                    res.json({success: true, "message": "Payment processed successfully!", "payment_method_token": token });
                 }
                 });
             }
